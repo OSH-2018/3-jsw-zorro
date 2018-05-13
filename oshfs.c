@@ -19,6 +19,27 @@ typedef unsigned long fs_addr;
 //16MB memory
 //per block's size is 1024 bytes
 
+
+static struct filenode *get_filenode(const char *name);
+void * create_new_block();
+void * create_new_block();
+unsigned int move(unsigned int choice,fs_addr blockposition);
+void markbit (fs_addr blockposition);
+void demarkbit(fs_addr blockposition);
+fs_addr lookupfreeblock();
+void init_prologue_block(long a,long b);
+static void* oshfs_init(struct fuse_conn_info *conn);
+static int oshfs_getattr(const char *path, struct stat *stbuf);
+void blockfree(fs_addr address);
+static int oshfs_mknod(const char *path, mode_t mode, dev_t dev);
+static int oshfs_truncate(const char* path, off_t size);
+static int oshfs_unlink(const char *path);
+static int oshfs_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi);
+static int oshfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi);
+static int oshfs_open(const char *path, struct fuse_file_info *fi);
+static int oshfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi);
+
+
 struct contentnode {
 	fs_addr next;
 	char data [BLOCKSIZE-sizeof(fs_addr)];
@@ -227,6 +248,7 @@ static int oshfs_truncate(const char* path, off_t size)
     fs_addr addr_a;
     fs_addr addr_b;
     fs_addr number1,number2;
+    fs_addr addr;
     struct contentnode * nodea;
     struct filenode * node = get_filenode(path);
     number1 = size/BLOCKLENGTH;
@@ -247,8 +269,36 @@ static int oshfs_truncate(const char* path, off_t size)
     if (number1 >= number2)
     {
         number = ((node->st.st_size+BLOCK_LENGTH-1)/BLOCK_LENGTH) *BLOCK_LENGTH;
-        
     }
+    addr_a = node->contentnode;
+    while (addr_a->next!=0)
+    {
+        addr_a= addr_a->next;
+    }
+    while (number < size)
+    {
+        if (size-number<BLOCKLENGTH) break;
+        nodea = (struct contentnode *) mem[addr_a];
+        if (nodea -> next == 0)
+        {
+            addr_b = lookupfreeblock();
+            mem[addr_b] = create_new_block();
+            markbit(addr_b);
+            addr_a = addr_b;
+        }
+        else 
+            addr_a = nodea ->next;
+    }
+    number = number + BLOCKLENGTH;
+    nodea = (struct contentnode*) mem[addr_a];
+    while (nodea-> next ! = 0)
+    {
+        addr_b = nodea -> next;
+        nodea -> next = ((struct contentnode *) mem[addr_b])->next;
+        blockfree(addr_b);
+    }
+    nodea ->st. st_size = size;
+    return 0;
 }
 
 static int oshfs_unlink(const char *path)
