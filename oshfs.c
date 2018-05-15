@@ -13,6 +13,7 @@ typedef unsigned long fs_addr;
 #define BLOCKSIZE 1024 
 #define BLOCKNR 16*1024
 #define BLOCKLENGTH (BLOCKSIZE-sizeof(fs_addr))
+//BLOCKLENGTH is the true length of a block
 #define FORMAL_DATA_NUMBER (BLOCKNR/BLOCKSIZE/8)
 #define allused 1111111111111111
 //per block has 1024 bytes each byte has 8 bits
@@ -27,7 +28,7 @@ unsigned int move(unsigned int choice,fs_addr blockposition);
 void markbit (fs_addr blockposition);
 void demarkbit(fs_addr blockposition);
 fs_addr lookupfreeblock();
-void init_prologue_block(long a,long b);
+void init_prologue_block(fs_addr a,fs_addr b);
 static void* oshfs_init(struct fuse_conn_info *conn);
 static int oshfs_getattr(const char *path, struct stat *stbuf);
 void blockfree(fs_addr address);
@@ -52,21 +53,21 @@ struct filenode {
     fs_addr position;// marks the position in the array
     //at first I'd like to use struct contentnode * as the pointer to point to the son table However, as it is difficult to express it on mem so I changed it to fs_addr.
 	struct stat *st;
-	struct filenode *next;
+	fs_addr next;
 }
 //这里采用广义表的结构来写
 
 
 static void *mem [BLOCKNR];
 
-struct filenode *root = NULL;
+fs_addr root = 0;
 fs_addr root2;
 static struct filenode *get_filenode(const char *name)
 {
-    struct filenode *node = root;
+    struct filenode *node = (struct filenode *)mem[root];
     while(node) {
         if(strcmp(node->filename, name + 1) != 0)
-            node = node->next;
+            node = (struct filenode *)mem[node->next];
         else
             return node;
     }
@@ -95,7 +96,7 @@ unsigned int move(unsigned int choice,fs_addr blockposition)
 
 void markbit (fs_addr blockposition)
 {
-	long * ip;
+	fs_addr * ip;
     unsigned int *pointer;
     fs_addr inside_blockposition;
 	int markbit =1+ blockposition/8/BLOCKSIZE;
@@ -103,7 +104,7 @@ void markbit (fs_addr blockposition)
     if (blockposition < BLOCKNR){
         inside_blockposition = blockposition % (8 * BLOCKSIZE) / (sizeof(unsigned int) * 8);
         pointer [inside_blockposition] |= move(1,blockposition);
-        ip = (long *) mem[0];
+        ip = (fs_addr *) mem[0];
         ip[1] ++;
         // here divide the block into unsigned array , and each unit's bit is operated like this
     }
@@ -111,7 +112,7 @@ void markbit (fs_addr blockposition)
 //demarkbit is very similar to markbit just need to change | to &
 void demarkbit(fs_addr blockposition)
 {
-    long * ip;
+    fs_addr * ip;
     unsigned int *pointer;
     fs_addr inside_blockposition;
     int markbit =1+ blockposition/8/BLOCKSIZE;
@@ -119,7 +120,7 @@ void demarkbit(fs_addr blockposition)
     if (blockposition < BLOCKNR){
         inside_blockposition = blockposition % (8 * BLOCKSIZE) / (sizeof(unsigned int) * 8);
         pointer [inside_blockposition] &= move(0,blockposition);
-        ip = (long *) mem[0];
+        ip = (fs_addr *) mem[0];
         ip[1] --;
         // here divide the block into unsigned array , and each unit's bit is operated like this
     }
@@ -173,7 +174,7 @@ static void create_filenode(const char *filename, const struct stat *st)
         node->st = st;
         node->firstcontentnode = NULL;
         node->next = root;
-        root = node;
+        root = address;
         node->position = address;
         return 0;
     }
@@ -181,9 +182,9 @@ static void create_filenode(const char *filename, const struct stat *st)
 
 }
 
-void init_prologue_block(long a,long b)
+void init_prologue_block(fs_addr a,fs_addr b)
 {
-    long i;
+    fs_addr i;
     for (i=a;i<=b;i++)
         mem[i] = create_new_block();
 }
@@ -192,15 +193,16 @@ static void* oshfs_init(struct fuse_conn_info *conn)
 {
     //initialize the oshfs and set the first few blocks as the prologue_block
 	int i;
-    long * ip;
+    fs_addr * ip;
     mem[0]=create_new_block();
     init_prologue_block(1,FORMAL_DATA_NUMBER);
     markbit(0);
     for (i=1; i<=FORMAL_DATA_NUMBER;i++)
         mark(i);
-    ip = (long *) mem[0];
+    ip = (fs_addr *) mem[0];
     ip[1] = FORMAL_DATA_NUMBER+1;
     ip[0] = BLOCKNR;
+    ip[2] = root;
     return 0;
 }
 
@@ -237,7 +239,7 @@ static int oshfs_mknod(const char *path, mode_t mode, dev_t dev)
     st.st_gid = fuse_get_context()->gid;
     st.st_nlink = 1;
     st.st_size = 0;
-    check=create_filenode(path + 1, &st);
+    check = create_filenode(path + 1, &st);
     if (!check) return 0;
     else return -errno;
 }
@@ -304,14 +306,14 @@ static int oshfs_truncate(const char* path, off_t size)
 static int oshfs_unlink(const char *path)
 {
     int mark=0;
-    struct filenode * node = root;
+    struct filenode * node = (struct filenode *)mem[root];
     struct contentnode * block;
     fs_addr a;
     fs_addr b;
     fs_addr position;
     // three situations
     // root doesn't exist
-    if (root == NULL)
+    if (root == 0)
         return -ENOENT;
     // the root node is the node which should be deleted
     if (strcmp(node ->filename,path+1) ==0)
@@ -325,11 +327,11 @@ static int oshfs_unlink(const char *path)
     else {
         while (node) {
             if (strcmp(node->filename,path +1) !=0)
-                node = node -> next;
+                node = (struct node *)mem[node -> next];
             else {
                 position = node -> position;
                 a = node ->firstcontentnode;
-                node = node -> next;
+                node = (struct node *) mem[node -> next];
                 blockfree(position);
                 mark = 1;
                 break;
@@ -351,7 +353,7 @@ static int oshfs_unlink(const char *path)
 static int oshfs_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
     char * data;
-    long allblocknumber,usednumber;
+    fs_addr allblocknumber,usednumber;
     fs_addr written_size=0;
     fs_addr write_begin_place;
     fs_addr address_next;
@@ -359,7 +361,7 @@ static int oshfs_write(const char *path, const char *buf, size_t size, off_t off
     struct filenode *node = get_filenode(path);
     if (node == NULL)
         return -ENOENT;
-    long * ip = (long *)mem[0];
+    fs_addr * ip = (fs_addr *)mem[0];
     allblocknumber = ip[0];
     usednumber = ip[1];
     if (((offset + size - node->st.st_size + BLOCKSIZE - 1) / BLOCKSIZE)>
@@ -390,7 +392,7 @@ static int oshfs_write(const char *path, const char *buf, size_t size, off_t off
         while (i < offset)
         {
             i = i + BLOCKLENGTH;
-            newnode = (struct content node *) mem[placea];
+            newnode = (struct contentnode *) mem[placea];
             newnode = newnode->next;
         }
     }
@@ -437,9 +439,9 @@ static int oshfs_write(const char *path, const char *buf, size_t size, off_t off
 }
 
 static int oshfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi){
-  struct filenode *node=root;
-  struct counter_block * cb ;
-  cb=(struct counter_block * ) mem_blocks[0];
+  struct filenode *node=(struct filenode *)mem[root];
+  struct contentnode * cb ;
+  cb=(struct contentnode * ) mem[0];
   filler(buf, ".", NULL, 0);
   filler(buf, "..", NULL, 0);
   while(node){
