@@ -1,3 +1,4 @@
+#define FUSE_USE_VERSION 26
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -9,20 +10,19 @@
 #include <sys/time.h>
 
 typedef unsigned long fs_addr;
-#define FILENAME_MAX 255
-#define BLOCKSIZE 1024 
+#define FILENAMEMAX 255
+#define BLOCKSIZE 4096
 #define BLOCKNR 16*1024
 #define BLOCKLENGTH (BLOCKSIZE-sizeof(fs_addr))
 //BLOCKLENGTH is the true length of a block
 #define FORMAL_DATA_NUMBER (BLOCKNR/BLOCKSIZE/8)
 #define allused 1111111111111111
-//per block has 1024 bytes each byte has 8 bits
-//16MB memory
-//per block's size is 1024 bytes
+//per block has 4096 bytes each byte has 8 bits
+//64MB memory
+//per block's size is 4096 bytes
 
 
 static struct filenode *get_filenode(const char *name);
-void * create_new_block();
 void * create_new_block();
 unsigned int move(unsigned int choice,fs_addr blockposition);
 void markbit (fs_addr blockposition);
@@ -40,28 +40,29 @@ static int oshfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, of
 static int oshfs_open(const char *path, struct fuse_file_info *fi);
 static int oshfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi);
 
-
+fs_addr * ip;//ip points to the first block of the memory and ip[0] is the number of all the blocks
+//ip[1] is the number of the used blocks
+//ip[2] is the place to store where the root is
 struct contentnode {
 	fs_addr next;
 	char data [BLOCKSIZE-sizeof(fs_addr)];
-}
+};
 //content node作为内容指针,也就是块指针
 
 struct filenode {
-	char filename [FILENAME_MAX];
+	char filename [FILENAMEMAX];
 	fs_addr firstcontentnode;
     fs_addr position;// marks the position in the array
     //at first I'd like to use struct contentnode * as the pointer to point to the son table However, as it is difficult to express it on mem so I changed it to fs_addr.
-	struct stat *st;
+	struct stat st;
 	fs_addr next;
-}
+};
 //这里采用广义表的结构来写
 
 
 static void *mem [BLOCKNR];
 
-fs_addr root = 0;
-fs_addr root2;
+#define root ip[2]
 static struct filenode *get_filenode(const char *name)
 {
     struct filenode *node = (struct filenode *)mem[root];
@@ -88,7 +89,7 @@ unsigned int move(unsigned int choice,fs_addr blockposition)
     // This function is used to move 1 and the choice is determined by whether to markbit or demarkbit
     result = ((unsigned int)1)<<(sizeof(unsigned int) * 8-blockposition % (8*BLOCKSIZE) %(sizeof(unsigned int) * 8)-1);
     switch (choice){
-            1:return result;
+            case 1:return result;
         default: return ~result;
     
     }
@@ -96,7 +97,6 @@ unsigned int move(unsigned int choice,fs_addr blockposition)
 
 void markbit (fs_addr blockposition)
 {
-	fs_addr * ip;
     unsigned int *pointer;
     fs_addr inside_blockposition;
 	int markbit =1+ blockposition/8/BLOCKSIZE;
@@ -104,7 +104,6 @@ void markbit (fs_addr blockposition)
     if (blockposition < BLOCKNR){
         inside_blockposition = blockposition % (8 * BLOCKSIZE) / (sizeof(unsigned int) * 8);
         pointer [inside_blockposition] |= move(1,blockposition);
-        ip = (fs_addr *) mem[0];
         ip[1] ++;
         // here divide the block into unsigned array , and each unit's bit is operated like this
     }
@@ -112,7 +111,6 @@ void markbit (fs_addr blockposition)
 //demarkbit is very similar to markbit just need to change | to &
 void demarkbit(fs_addr blockposition)
 {
-    fs_addr * ip;
     unsigned int *pointer;
     fs_addr inside_blockposition;
     int markbit =1+ blockposition/8/BLOCKSIZE;
@@ -120,7 +118,6 @@ void demarkbit(fs_addr blockposition)
     if (blockposition < BLOCKNR){
         inside_blockposition = blockposition % (8 * BLOCKSIZE) / (sizeof(unsigned int) * 8);
         pointer [inside_blockposition] &= move(0,blockposition);
-        ip = (fs_addr *) mem[0];
         ip[1] --;
         // here divide the block into unsigned array , and each unit's bit is operated like this
     }
@@ -161,7 +158,7 @@ fs_addr lookupfreeblock()//This function is used to look for the free block
 
 }
 
-static void create_filenode(const char *filename, const struct stat *st)
+static int create_filenode(const char *filename, const struct stat *st)
 {
     struct filenode * node;
 	fs_addr address;
@@ -171,8 +168,8 @@ static void create_filenode(const char *filename, const struct stat *st)
         mem[address] = create_new_block();
         markbit(address);
         strncpy(node->filename,filename,strlen(filename));
-        node->st = st;
-        node->firstcontentnode = NULL;
+        node->st = *st;
+        node->firstcontentnode = 0;
         node->next = root;
         root = address;
         node->position = address;
@@ -193,16 +190,15 @@ static void* oshfs_init(struct fuse_conn_info *conn)
 {
     //initialize the oshfs and set the first few blocks as the prologue_block
 	int i;
-    fs_addr * ip;
     mem[0]=create_new_block();
-    init_prologue_block(1,FORMAL_DATA_NUMBER);
     markbit(0);
+    init_prologue_block(1,FORMAL_DATA_NUMBER);
     for (i=1; i<=FORMAL_DATA_NUMBER;i++)
-        mark(i);
+        markbit(i);
     ip = (fs_addr *) mem[0];
     ip[1] = FORMAL_DATA_NUMBER+1;
     ip[0] = BLOCKNR;
-    ip[2] = root;
+    ip[2] = 0;
     return 0;
 }
 
@@ -215,7 +211,7 @@ static int oshfs_getattr(const char *path, struct stat *stbuf)
         memset(stbuf, 0, sizeof(struct stat));
         stbuf->st_mode = S_IFDIR | 0755;
     } else if(node) {
-        memcpy(stbuf, node->st, sizeof(struct stat));
+        memcpy(stbuf, &(node->st), sizeof(struct stat));
     } else {
         ret = -ENOENT;
     }
@@ -254,28 +250,29 @@ static int oshfs_truncate(const char* path, off_t size)
     struct contentnode * nodea;
     struct filenode * node = get_filenode(path);
     number1 = size/BLOCKLENGTH;
-    number2 = node->st.st_size/BLOCK_LENGTH;
+    number2 = node->st.st_size/BLOCKLENGTH;
     if (node == NULL) return -ENOENT;
-    if (node -> content ==0)
+    if (node -> firstcontentnode ==0)
     {
         if (size ==0)
             return 0;
         else if (!size) {
             addr_b = lookupfreeblock();
-            mem[addr_b] = create_filenode();
+            mem[addr_b] = create_new_block();
             markbit(addr_b);
-            node -> firstcontentnode = b;
+            node -> firstcontentnode = addr_b;
         }
     }
-    addr_a = node -> contentnode;
+    addr_a = node -> firstcontentnode;
+    //if number1 >= number2 means we need more blocks so let addr_a points to the last block
     if (number1 >= number2)
     {
-        number = ((node->st.st_size+BLOCK_LENGTH-1)/BLOCK_LENGTH) *BLOCK_LENGTH;
-    }
-    addr_a = node->contentnode;
-    while (addr_a->next!=0)
-    {
-        addr_a= addr_a->next;
+        number = ((node->st.st_size+BLOCKLENGTH-1)/BLOCKLENGTH) *BLOCKLENGTH;
+        addr_a = node->firstcontentnode;
+        while (((struct contentnode *)mem[addr_a])->next!=0)
+        {
+            addr_a = ((struct contentnode *)mem[addr_a])->next;
+        }
     }
     while (number < size)
     {
@@ -290,16 +287,16 @@ static int oshfs_truncate(const char* path, off_t size)
         }
         else 
             addr_a = nodea ->next;
+        number = number + BLOCKLENGTH;
     }
-    number = number + BLOCKLENGTH;
     nodea = (struct contentnode*) mem[addr_a];
-    while (nodea-> next ! = 0)
+    while (nodea-> next != 0)
     {
         addr_b = nodea -> next;
         nodea -> next = ((struct contentnode *) mem[addr_b])->next;
         blockfree(addr_b);
     }
-    nodea ->st. st_size = size;
+    node ->st.st_size = size;
     return 0;
 }
 
@@ -320,18 +317,19 @@ static int oshfs_unlink(const char *path)
     {
         root = node -> next;
         a = node -> firstcontentnode;
-        blockfree(node->bid);
+        blockfree(node->position);
         mark = 1;
     }
     //这里找到符合条件的第一个头结点
     else {
-        while (node) {
+        while (node)
+        {
             if (strcmp(node->filename,path +1) !=0)
-                node = (struct node *)mem[node -> next];
+                node = (struct filenode *)mem[node -> next];
             else {
                 position = node -> position;
                 a = node ->firstcontentnode;
-                node = (struct node *) mem[node -> next];
+                node = (struct filenode *) mem[node -> next];
                 blockfree(position);
                 mark = 1;
                 break;
@@ -357,6 +355,7 @@ static int oshfs_write(const char *path, const char *buf, size_t size, off_t off
     fs_addr written_size=0;
     fs_addr write_begin_place;
     fs_addr address_next;
+    fs_addr num;
     fs_addr thelastbytes = BLOCKLENGTH + offset % BLOCKLENGTH;
     struct filenode *node = get_filenode(path);
     if (node == NULL)
@@ -367,10 +366,12 @@ static int oshfs_write(const char *path, const char *buf, size_t size, off_t off
     if (((offset + size - node->st.st_size + BLOCKSIZE - 1) / BLOCKSIZE)>
         (allblocknumber-usednumber))
         return -errno;
-    if (node->st.st_size < offset) num = node -> st.st_size
-        else num = offset;
-    if (node ->st.st_size > num + size) node ->st.st_size= node ->st.st_size
-        else node ->st.st_size = num + size;
+    if (node->st.st_size < offset)
+        num = node -> st.st_size;
+    else num = offset;
+    if (node ->st.st_size > num + size)
+        node ->st.st_size= node ->st.st_size;
+    else node ->st.st_size = num + size;
     node -> st.st_blocks = node->st.st_size / BLOCKLENGTH;
     //here handles the write place
     fs_addr placea = node -> firstcontentnode;
@@ -385,22 +386,22 @@ static int oshfs_write(const char *path, const char *buf, size_t size, off_t off
         node->firstcontentnode = newcontentnode;
         placea = newcontentnode;
     }
-    int i;
-    if (offset/BLOCK_LENGTH <= node->st.st_size / BLOCK_LENGTH)
+    fs_addr i;
+    if (offset/BLOCKLENGTH <= node->st.st_size / BLOCKLENGTH)
     {
         i = BLOCKLENGTH;
         while (i < offset)
         {
             i = i + BLOCKLENGTH;
             newnode = (struct contentnode *) mem[placea];
-            newnode = newnode->next;
+            placea = newnode -> next;
         }
     }
     else {
         while (i<offset)
         {
             i = i + BLOCKLENGTH;
-            newnode = (struct content node *) mem[placea];
+            newnode = (struct contentnode *) mem[placea];
             //if placea!=0 means it is not the end of the knowing queue
             if (placea!=0) {
         
@@ -421,14 +422,14 @@ static int oshfs_write(const char *path, const char *buf, size_t size, off_t off
     {
         if ((size - written_size) <= thelastbytes) {
             data = (char *) mem [placea] + sizeof(fs_addr);// as the mem have some spaces for fs_addr so the data should jump over with it
-            memcpy(dst,buf+written_size,size-written_size);
-            write_size = size;
+            memcpy(data,buf+written_size,size-written_size);
+            written_size = size;
         }
         else {
             char * data = (char *) mem [placea] + sizeof(fs_addr);
             memcpy(data, buf + written_size,BLOCKLENGTH);
             written_size += BLOCKLENGTH;
-            address_next = (struct contentnode *)  mem[written_size]->next;
+            address_next = ((struct contentnode *)  mem[written_size])->next;
             /*
              */
             placea = address_next;
@@ -446,7 +447,7 @@ static int oshfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, of
   filler(buf, "..", NULL, 0);
   while(node){
     filler(buf, node->filename, &(node->st), 0);
-    node=node->next;
+    node=mem[node->next] ;
   }
 }
 
@@ -481,21 +482,21 @@ static int oshfs_read(const char *path, char *buf, size_t size, off_t offset, st
         placea = newcontentnode;
     }
     int i;
-    if (offset/BLOCK_LENGTH <= node->st.st_size / BLOCK_LENGTH)
+    if (offset/BLOCKLENGTH <= node->st.st_size / BLOCKLENGTH)
     {
         i = BLOCKLENGTH;
         while (i < offset)
         {
             i = i + BLOCKLENGTH;
-            newnode = (struct content node *) mem[placea];
-            newnode = newnode->next;
+            newnode = (struct contentnode *) mem[placea];
+            placea = newnode->next;
         }
     }
     else {
         while (i<offset)
         {
             i = i + BLOCKLENGTH;
-            newnode = (struct content node *) mem[placea];
+            newnode = (struct contentnode *) mem[placea];
             //if placea!=0 means it is not the end of the knowing queue
             if (placea!=0) {
                 
