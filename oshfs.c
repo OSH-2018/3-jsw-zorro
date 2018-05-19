@@ -70,7 +70,7 @@ static void *mem [BLOCKNR];
 #define root ip[2]
 static struct filenode *get_filenode(const char *name)
 {
-    fprintf(stderr,"%ld",root);
+    fprintf(stderr,"%ld\n",root);
 
 
     struct filenode *node = (struct filenode *)mem[root];
@@ -80,6 +80,7 @@ static struct filenode *get_filenode(const char *name)
             node = (struct filenode *)mem[node->next];
         else  {
             fprintf(stderr,"found the node");
+            fprintf(stderr,"%p",node);
             return node;
         }
     }
