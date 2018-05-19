@@ -273,6 +273,7 @@ static int oshfs_getattr(const char *path, struct stat *stbuf)
         fprintf(stderr, "here comes the getattr part1\n");
         memset(stbuf, 0, sizeof(struct stat));
         stbuf->st_mode = S_IFDIR | 0755;
+        stbuf->st_nlink = 2;
     }
     else if(node) {
         fprintf(stderr, "here comes the getattr part2\n");
