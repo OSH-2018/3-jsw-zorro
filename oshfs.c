@@ -262,11 +262,15 @@ static int oshfs_getattr(const char *path, struct stat *stbuf)
     int ret = 0;
     struct filenode *node = get_filenode(path);
     if(strcmp(path, "/") == 0) {
+
+        fprintf(stderr, "here comes the getattr part1");
         memset(stbuf, 0, sizeof(struct stat));
         stbuf->st_mode = S_IFDIR | 0755;
     } else if(node) {
+        fprintf(stderr, "here comes the getattr part2");
         memcpy(stbuf, &(node->st), sizeof(struct stat));
     } else {
+        fprintf(stderr, "here comes the getattr part3");
         ret = -ENOENT;
     }
     return ret;
@@ -300,6 +304,10 @@ static int oshfs_mknod(const char *path, mode_t mode, dev_t dev)
 
 void freealltheblocks(struct contentnode *block)
 {
+
+    fprintf(stderr,"here comes the freealltheblocks part");
+
+
     fs_addr address;
     while (block-> next != 0)
     {
@@ -419,6 +427,7 @@ static int oshfs_unlink(const char *path)
 
 static fs_addr createcontentblock()
 {
+    fprintf(stderr,"here comes the createcontentblock part");
     fs_addr newcontentnode;
     newcontentnode = lookupfreeblock();
     mem[newcontentnode] = create_new_block();
@@ -428,6 +437,7 @@ static fs_addr createcontentblock()
 
 static fs_addr find_the_last_contentnode(struct filenode * firstfile)
 {
+    fprintf(stderr,"here comes the find_the_last_contentnode part");
     fs_addr i;
     struct contentnode * ctnode;
     ctnode = (struct contentnode *)mem[firstfile -> firstcontentnode];
@@ -542,7 +552,7 @@ static int oshfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, of
     struct filenode *node=(struct filenode *)mem[root];
     struct contentnode * cb ;
 
-	    fprintf(stderr,"readdir is ok");
+	fprintf(stderr,"readdir is ok");
 
     cb=(struct contentnode * ) mem[0];
 
@@ -662,7 +672,7 @@ static const struct fuse_operations op = {
     .mknod = oshfs_mknod,
     .open = oshfs_open,
     .write = oshfs_write,
-    .truncate = oshfs_truncate,
+    .truncate =oshfs_truncate,
     .read = oshfs_read,
     .unlink = oshfs_unlink,
 };
