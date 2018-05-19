@@ -523,12 +523,25 @@ static int oshfs_write(const char *path, const char *buf, size_t size, off_t off
 static int oshfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi){
     struct filenode *node=(struct filenode *)mem[root];
     struct contentnode * cb ;
+
+	    fprintf(stderr,"readdir is ok");
+
     cb=(struct contentnode * ) mem[0];
+
+    fprintf(stderr,"ok1");
+
     filler(buf, ".", NULL, 0);
+
+	fprintf(stderr,"ok2");
+
     filler(buf, "..", NULL, 0);
+
+	fprintf(stderr,"ok3");
+
     while(node){
         filler(buf, node->filename, &(node->st), 0);
         node=mem[node->next] ;
+	fprintf(stderr,"oknow");
     }
 }
 
