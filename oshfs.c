@@ -74,6 +74,8 @@ static struct filenode *get_filenode(const char *name)
 
 
     struct filenode *node = (struct filenode *)mem[root];
+    fprintf(stderr,"%s on the file\n",node->filename);
+    fprintf(stderr,"%s of the name\n",name+1);
     while(node) {
         //fprintf(stderr,"this is the next node %ld",node->next);
         if(strcmp(node->filename, name + 1) != 0)
