@@ -92,6 +92,8 @@ void * create_new_block()
 
 unsigned int move(unsigned int choice,fs_addr blockposition)
 {
+    fprintf(stderr, "here comes the move part");
+
     unsigned int result;
     // This function is used to move 1 and the choice is determined by whether to markbit or demarkbit
     result = ((unsigned int)1)<<((sizeof(unsigned int) * 8-1)-blockposition % (8*BLOCKSIZE) %(sizeof(unsigned int) * 8));
@@ -104,45 +106,31 @@ unsigned int move(unsigned int choice,fs_addr blockposition)
 
 void markbit (fs_addr blockposition)
 {
-    fprintf(stderr,"5");
+    fprintf(stderr,"markbit");
     
     unsigned int *pointer;
     fs_addr inside_blockposition;
     int markbit =1+ blockposition/BLOCKSIZE/8;
     unsigned middle;
     
-    fprintf(stderr,"6");
     
     pointer = (unsigned int *)mem[markbit];
     
-    
-    fprintf(stderr,"7");
     
     
     if (blockposition < BLOCKNR){
         inside_blockposition = blockposition % (8 * BLOCKSIZE) / (sizeof(unsigned int) * 8);
         
         
-        fprintf(stderr,"8");
-        
         middle = move(1,blockposition);
-        fprintf(stderr,"10 ");
-        fprintf(stderr,"%ld\n",sizeof(unsigned int));
-        fprintf(stderr,"%ld ",inside_blockposition);
-        fprintf(stderr,"%x\n",middle);
-        fprintf(stderr,"%p\n",mem[1]);
-        fprintf(stderr,"%u\n",pointer[inside_blockposition]);
         
         
         pointer [inside_blockposition] |= middle;
         
         
-        fprintf(stderr,"9");
-        
         
         ip[1] ++;
         
-        fprintf(stderr,"11");
         
         
         // here divide the block into unsigned array , and each unit's bit is operated like this
@@ -151,6 +139,11 @@ void markbit (fs_addr blockposition)
 //demarkbit is very similar to markbit just need to change | to &
 void demarkbit(fs_addr blockposition)
 {
+
+
+    fprintf(stderr, "here comes the demarkbit part");
+
+
     unsigned int *pointer;
     fs_addr inside_blockposition;
     int markbit =1+ blockposition/8/BLOCKSIZE;
@@ -166,6 +159,9 @@ void demarkbit(fs_addr blockposition)
 
 fs_addr lookupfreeblock()//This function is used to look for the free block
 {
+
+    fprintf(stderr, "here comes the lookupfreeblock part");
+
     //we use the markbit here to judge if the block is free or not
     fs_addr i;
     int j;
@@ -228,6 +224,9 @@ void init_prologue_block(fs_addr a,fs_addr b)
 
 static void* oshfs_init(struct fuse_conn_info *conn)
 {
+    fprintf(stderr, "here comes the init part");
+
+
     //initialize the oshfs and set the first few blocks as the prologue_block
     int i;
     mem[0]=create_new_block();
@@ -257,6 +256,9 @@ static void* oshfs_init(struct fuse_conn_info *conn)
 
 static int oshfs_getattr(const char *path, struct stat *stbuf)
 {
+    fprintf(stderr, "here comes the getattr part");
+
+
     int ret = 0;
     struct filenode *node = get_filenode(path);
     if(strcmp(path, "/") == 0) {
@@ -279,6 +281,10 @@ void blockfree(fs_addr address)
 
 static int oshfs_mknod(const char *path, mode_t mode, dev_t dev)
 {
+
+    fprintf(stderr, "here comes the mknod part");
+
+
     int count;
     int check;
     struct stat st;
@@ -305,6 +311,10 @@ void freealltheblocks(struct contentnode *block)
 }
 static int oshfs_truncate(const char* path, off_t size)
 {
+    fprintf(stderr, "here comes the truncate part");
+
+
+
     off_t number=0;
     fs_addr addr_a;
     fs_addr addr_b;
@@ -364,6 +374,10 @@ static int oshfs_truncate(const char* path, off_t size)
 
 static int oshfs_unlink(const char *path)
 {
+
+    fprintf(stderr, "here comes the unlink part");
+
+
     int mark=0;
     struct filenode * node = (struct filenode *)mem[root];
     struct contentnode * block;
@@ -427,6 +441,10 @@ static fs_addr find_the_last_contentnode(struct filenode * firstfile)
 
 static int oshfs_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
+
+    fprintf(stderr, "here comes the write part");
+
+
     char * data;
     fs_addr allblocknumber,usednumber;
     fs_addr written_size=0;
@@ -547,6 +565,8 @@ static int oshfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, of
 
 static int oshfs_open(const char *path, struct fuse_file_info *fi)
 {
+
+
     return 0;
 }
 
@@ -559,6 +579,9 @@ static int oshfs_read(const char *path, char *buf, size_t size, off_t offset, st
     //very similar to ohsfs_write
     //however in read we doesn't concern with the length problem
     struct filenode *node = get_filenode(path);
+
+    fprintf(stderr, "here comes the read part");
+
     if (node == NULL) return -ENOENT;
     if (offset + size > node->st.st_size)
         size = node ->st.st_size - offset;
@@ -567,6 +590,8 @@ static int oshfs_read(const char *path, char *buf, size_t size, off_t offset, st
     fs_addr newcontentnode;
     fs_addr b;
     struct contentnode * newnode;
+
+
     if (placea == 0)
     {
         placea = createcontentblock();
