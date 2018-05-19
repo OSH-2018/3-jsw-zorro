@@ -70,8 +70,12 @@ static void *mem [BLOCKNR];
 #define root ip[2]
 static struct filenode *get_filenode(const char *name)
 {
+    fprintf(stderr,"%ld",root);
+
+
     struct filenode *node = (struct filenode *)mem[root];
     while(node) {
+        fprintf(stderr,"this is the next node %ld",node->next);
         if(strcmp(node->filename, name + 1) != 0)
             node = (struct filenode *)mem[node->next];
         else
@@ -266,10 +270,12 @@ static int oshfs_getattr(const char *path, struct stat *stbuf)
         fprintf(stderr, "here comes the getattr part1\n");
         memset(stbuf, 0, sizeof(struct stat));
         stbuf->st_mode = S_IFDIR | 0755;
-    } else if(node) {
+    }
+    else if(node) {
         fprintf(stderr, "here comes the getattr part2\n");
         memcpy(stbuf, &(node->st), sizeof(struct stat));
-    } else {
+    }
+    else {
         fprintf(stderr, "here comes the getattr part3\n");
         ret = -ENOENT;
     }
