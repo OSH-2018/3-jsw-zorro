@@ -86,7 +86,7 @@ void * create_new_block()
     newblock = mmap(NULL,BLOCKSIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     memset(newblock,0,BLOCKSIZE);
     fprintf(stderr,"%p\n",newblock);
-    
+
     return newblock;
 }
 
@@ -100,39 +100,39 @@ unsigned int move(unsigned int choice,fs_addr blockposition)
     switch (choice){
         case 1:return result;
         default: return ~result;
-            
+
     }
 }
 
 void markbit (fs_addr blockposition)
 {
     fprintf(stderr,"markbit");
-    
+
     unsigned int *pointer;
     fs_addr inside_blockposition;
     int markbit =1+ blockposition/BLOCKSIZE/8;
     unsigned middle;
-    
-    
+
+
     pointer = (unsigned int *)mem[markbit];
-    
-    
-    
+
+
+
     if (blockposition < BLOCKNR){
         inside_blockposition = blockposition % (8 * BLOCKSIZE) / (sizeof(unsigned int) * 8);
-        
-        
+
+
         middle = move(1,blockposition);
-        
-        
+
+
         pointer [inside_blockposition] |= middle;
-        
-        
-        
+
+
+
         ip[1] ++;
-        
-        
-        
+
+
+
         // here divide the block into unsigned array , and each unit's bit is operated like this
     }
 }
@@ -191,7 +191,7 @@ fs_addr lookupfreeblock()//This function is used to look for the free block
         return (8*sizeof(unsigned int)*j+position2+BLOCKSIZE*i);
     }
     if (!foundornot) return 0;
-    
+
 }
 
 static int create_filenode(const char *filename, const struct stat *st)
@@ -212,7 +212,7 @@ static int create_filenode(const char *filename, const struct stat *st)
         return 0;
     }
     else return 1;
-    
+
 }
 
 void init_prologue_block(fs_addr a,fs_addr b)
@@ -233,20 +233,20 @@ static void* oshfs_init(struct fuse_conn_info *conn)
     init_prologue_block(1,FORMAL_DATA_NUMBER);
     ip = (fs_addr *) mem[0];
     fprintf(stderr,"1");
-    
+
     markbit(0);
-    
+
     fprintf(stderr,"2");
-    
-    
-    
-    
+
+
+
+
     fprintf(stderr,"3");
-    
-    
+
+
     for (i=1; i<=FORMAL_DATA_NUMBER;i++)
         markbit(i);
-    
+
     ip[1] = FORMAL_DATA_NUMBER+1;
     ip[0] = BLOCKNR;
     ip[2] = 0;
@@ -256,21 +256,21 @@ static void* oshfs_init(struct fuse_conn_info *conn)
 
 static int oshfs_getattr(const char *path, struct stat *stbuf)
 {
-    fprintf(stderr, "here comes the getattr part");
+    fprintf(stderr, "here comes the getattr part\n");
 
 
     int ret = 0;
     struct filenode *node = get_filenode(path);
     if(strcmp(path, "/") == 0) {
 
-        fprintf(stderr, "here comes the getattr part1");
+        fprintf(stderr, "here comes the getattr part1\n");
         memset(stbuf, 0, sizeof(struct stat));
         stbuf->st_mode = S_IFDIR | 0755;
     } else if(node) {
-        fprintf(stderr, "here comes the getattr part2");
+        fprintf(stderr, "here comes the getattr part2\n");
         memcpy(stbuf, &(node->st), sizeof(struct stat));
     } else {
-        fprintf(stderr, "here comes the getattr part3");
+        fprintf(stderr, "here comes the getattr part3\n");
         ret = -ENOENT;
     }
     return ret;
@@ -315,7 +315,7 @@ void freealltheblocks(struct contentnode *block)
         block -> next = ((struct contentnode *) mem[address])->next;
         blockfree(address);
     }
-    
+
 }
 static int oshfs_truncate(const char* path, off_t size)
 {
@@ -357,7 +357,7 @@ static int oshfs_truncate(const char* path, off_t size)
             addr_a = ((struct contentnode *)mem[addr_a])->next;
         }
     }
-    
+
     for (;number<size;number+=BLOCKLENGTH)
     {
         if (size-number<BLOCKLENGTH) break;
@@ -375,7 +375,7 @@ static int oshfs_truncate(const char* path, off_t size)
     nodea = (struct contentnode*) mem[addr_a];
     freealltheblocks(nodea);
     //free all the blocks
-    
+
     node ->st.st_size = size;
     return 0;
 }
@@ -500,7 +500,7 @@ static int oshfs_write(const char *path, const char *buf, size_t size, off_t off
             newnode = (struct contentnode *) mem[placea];
             //if placea!=0 means it is not the end of the knowing queue
             if (placea!=0) {
-                
+
                 placea = newnode ->next;
             }
             //else here should set up new block to save the message
@@ -530,11 +530,11 @@ static int oshfs_write(const char *path, const char *buf, size_t size, off_t off
                 backup = createcontentblock();
                 ((struct contentnode *)mem[placea])->next = backup;
                 address_next = backup;
-                
+
             }
-            
+
             placea = address_next;
-            
+
         }
     }
     if (node->st.st_size < offset)
@@ -544,7 +544,7 @@ static int oshfs_write(const char *path, const char *buf, size_t size, off_t off
         node ->st.st_size= node ->st.st_size;
     else node ->st.st_size = num + size;
     node -> st.st_blocks = node->st.st_size / BLOCKLENGTH;
-    
+
     return written_size;
 }
 
@@ -552,19 +552,19 @@ static int oshfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, of
     struct filenode *node=(struct filenode *)mem[root];
     struct contentnode * cb ;
 
-	fprintf(stderr,"readdir is ok");
+	fprintf(stderr,"readdir is ok\n");
 
     cb=(struct contentnode * ) mem[0];
 
-    fprintf(stderr,"ok1");
+    fprintf(stderr,"ok1\n");
 
     filler(buf, ".", NULL, 0);
 
-	fprintf(stderr,"ok2");
+	fprintf(stderr,"ok2\n");
 
     filler(buf, "..", NULL, 0);
 
-	fprintf(stderr,"ok3");
+	fprintf(stderr,"ok3\n");
 
     while(node){
         filler(buf, node->filename, &(node->st), 0);
@@ -625,7 +625,7 @@ static int oshfs_read(const char *path, char *buf, size_t size, off_t offset, st
             newnode = (struct contentnode *) mem[placea];
             //if placea!=0 means it is not the end of the knowing queue
             if (placea!=0) {
-                
+
                 placea = newnode ->next;
             }
             //else here should set up new block to save the message
@@ -659,9 +659,9 @@ static int oshfs_read(const char *path, char *buf, size_t size, off_t offset, st
             read_position = address_b;
         }
     }
-    
-    
-    
+
+
+
 }
 
 
