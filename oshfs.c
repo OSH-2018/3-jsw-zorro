@@ -13,13 +13,13 @@ typedef unsigned long fs_addr;
 #include <sys/types.h>
 #define FILENAMEMAX 256
 #define BLOCKSIZE 4096
-#define BLOCKNR 16*1024
+#define BLOCKNR 1024*1024
 #define BLOCKLENGTH (BLOCKSIZE-sizeof(fs_addr))
 //BLOCKLENGTH is the true length of a block
 #define FORMAL_DATA_NUMBER (BLOCKNR/BLOCKSIZE/8)
 #define allused 0xffffffff
 //per block has 4096 bytes each byte has 8 bits
-//64MB memory
+//4GB memory
 //per block's size is 4096 bytes
 
 struct filenode {
@@ -85,6 +85,8 @@ void * create_new_block()
     void * newblock;
     newblock = mmap(NULL,BLOCKSIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     memset(newblock,0,BLOCKSIZE);
+    fprintf(stderr,"%p\n",newblock);
+    
     return newblock;
 }
 
@@ -107,8 +109,8 @@ void markbit (fs_addr blockposition)
     unsigned int *pointer;
     fs_addr inside_blockposition;
     int markbit =1+ blockposition/BLOCKSIZE/8;
-    unsigned middle;    
-
+    unsigned middle;
+    
     fprintf(stderr,"6");
     
     pointer = (unsigned int *)mem[markbit];
@@ -125,8 +127,13 @@ void markbit (fs_addr blockposition)
         
         middle = move(1,blockposition);
         fprintf(stderr,"10 ");
+        fprintf(stderr,"%ld\n",sizeof(unsigned int));
         fprintf(stderr,"%ld ",inside_blockposition);
-        fprintf(stderr,"%lb",middle);
+        fprintf(stderr,"%x\n",middle);
+        fprintf(stderr,"%p\n",mem[1]);
+        fprintf(stderr,"%u\n",pointer[inside_blockposition]);
+        
+        
         pointer [inside_blockposition] |= middle;
         
         
@@ -134,6 +141,10 @@ void markbit (fs_addr blockposition)
         
         
         ip[1] ++;
+        
+        fprintf(stderr,"11");
+        
+        
         // here divide the block into unsigned array , and each unit's bit is operated like this
     }
 }
@@ -221,13 +232,14 @@ static void* oshfs_init(struct fuse_conn_info *conn)
     int i;
     mem[0]=create_new_block();
     init_prologue_block(1,FORMAL_DATA_NUMBER);
+    ip = (fs_addr *) mem[0];
     fprintf(stderr,"1");
     
     markbit(0);
     
     fprintf(stderr,"2");
     
-
+    
     
     
     fprintf(stderr,"3");
@@ -235,7 +247,7 @@ static void* oshfs_init(struct fuse_conn_info *conn)
     
     for (i=1; i<=FORMAL_DATA_NUMBER;i++)
         markbit(i);
-    ip = (fs_addr *) mem[0];
+    
     ip[1] = FORMAL_DATA_NUMBER+1;
     ip[0] = BLOCKNR;
     ip[2] = 0;
@@ -621,4 +633,3 @@ int main(int argc, char *argv[])
 {
     return fuse_main(argc, argv, &op, NULL);
 }
-
