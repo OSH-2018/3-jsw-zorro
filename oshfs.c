@@ -79,8 +79,8 @@ static struct filenode *get_filenode(const char *name)
         if(strcmp(node->filename, name + 1) != 0)
             node = (struct filenode *)mem[node->next];
         else  {
-            fprintf(stderr,"found the node");
-            fprintf(stderr,"%p",node);
+            fprintf(stderr,"found the node\n");
+            fprintf(stderr,"%p\n",node);
             return node;
         }
     }
@@ -558,7 +558,9 @@ static int oshfs_write(const char *path, const char *buf, size_t size, off_t off
 }
 
 static int oshfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi){
-    struct filenode *node=(struct filenode *)mem[root];
+  fprintf(stderr,"readdir is ok0\n");
+    struct filenode *node=(root ==0)? NULL: (struct filenode *)mem[root];
+
     struct contentnode * cb ;
 
 	fprintf(stderr,"readdir is ok\n");
