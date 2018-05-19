@@ -75,11 +75,13 @@ static struct filenode *get_filenode(const char *name)
 
     struct filenode *node = (struct filenode *)mem[root];
     while(node) {
-        fprintf(stderr,"this is the next node %ld",node->next);
+        //fprintf(stderr,"this is the next node %ld",node->next);
         if(strcmp(node->filename, name + 1) != 0)
             node = (struct filenode *)mem[node->next];
-        else
+        else  {
+            fprintf(stderr,"found the node");
             return node;
+        }
     }
     return NULL;
 }
