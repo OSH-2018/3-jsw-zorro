@@ -76,7 +76,7 @@ static struct filenode *get_filenode(const char *name)
     struct filenode *node = (struct filenode *)mem[root];
     fprintf(stderr,"%s on the file\n",node->filename);
     fprintf(stderr,"%s of the name\n",name+1);
-    while(node) {
+    while(node!=mem[0]) {
         //fprintf(stderr,"this is the next node %ld",node->next);
         if(strcmp(node->filename, name + 1) != 0)
             node = (struct filenode *)mem[node->next];
@@ -265,7 +265,7 @@ static void* oshfs_init(struct fuse_conn_info *conn)
 }
 
 
-/*static int oshfs_getattr(const char *path, struct stat *stbuf)
+static int oshfs_getattr(const char *path, struct stat *stbuf)
 {
     fprintf(stderr, "here comes the getattr part\n");
 
@@ -288,24 +288,9 @@ static void* oshfs_init(struct fuse_conn_info *conn)
         ret = -ENOENT;
     }
     return ret;
-}*/
-
-static int oshfs_getattr(const char *path, struct stat *stbuf)
-{
-    int ret = 0;
-    printf("getattr use get filenode\n");
-    struct filenode *node = get_filenode(path);
-    if(strcmp(path, "/") == 0) {
-        memset(stbuf, 0, sizeof(struct stat));
-        stbuf->st_mode = S_IFDIR | 0755;
-    } else if(node) {
-        memcpy(stbuf, &(node->st), sizeof(struct stat));
-    } else {
-        //printf("not found %s \n",path +1);
-        ret = -ENOENT;
-    }
-    return ret;
 }
+
+
 
 void blockfree(fs_addr address)
 {
@@ -579,7 +564,7 @@ static int oshfs_write(const char *path, const char *buf, size_t size, off_t off
     return written_size;
 }
 
-/*static int oshfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi){
+static int oshfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi){
   fprintf(stderr,"readdir is ok0\n");
     struct filenode *node=(root ==0)? NULL: (struct filenode *)mem[root];
 
@@ -598,25 +583,14 @@ static int oshfs_write(const char *path, const char *buf, size_t size, off_t off
 
 	fprintf(stderr,"ok3\n");
 
-    while(node){
+    while(node!=mem[0]){
         filler(buf, node->filename, &(node->st), 0);
         node=mem[node->next] ;
 	fprintf(stderr,"oknow");
     }
-}*/
-
-static int oshfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi){
-  fprintf(stderr,"here comes into the readdir part");
-  struct filenode * node=(struct filenode *)mem[root];
-
-  //printf("use %llu\n",cb->used_nums);
-  filler(buf, ".", NULL, 0);
-  filler(buf, "..", NULL, 0);
-  while(node){
-    filler(buf, node->filename, &(node->st), 0);
-    node=mem[node->next];
-  }
 }
+
+
 
 static int oshfs_open(const char *path, struct fuse_file_info *fi)
 {
