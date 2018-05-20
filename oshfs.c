@@ -70,12 +70,12 @@ static void *mem [BLOCKNR];
 #define root ip[2]
 static struct filenode *get_filenode(const char *name)
 {
-    fprintf(stderr,"%ld\n",root);
+    //fprintf(stderr,"%ld\n",root);
 
 
     struct filenode *node = (struct filenode *)mem[root];
-    fprintf(stderr,"%s on the file\n",node->filename);
-    fprintf(stderr,"%s of the name\n",name+1);
+    //fprintf(stderr,"%s on the file\n",node->filename);
+    //fprintf(stderr,"%s of the name\n",name+1);
     while(node!=mem[0]) {
         //fprintf(stderr,"this is the next node %ld",node->next);
         if(strcmp(node->filename, name + 1) != 0)
@@ -86,8 +86,9 @@ static struct filenode *get_filenode(const char *name)
             return node;
         }
     }
+    if (node == mem[0]) fprintf(stderr,"yes node == mem[0]\n");
 
-    fprintf(stderr,"now returns from the get_filenode");
+    //fprintf(stderr,"now returns from the get_filenode");
     return NULL;
 }
 
@@ -103,8 +104,7 @@ void * create_new_block()
 
 unsigned int move(unsigned int choice,fs_addr blockposition)
 {
-    fprintf(stderr, "here comes the move part");
-
+    fprintf(stderr, "here comes the move part\n");
     unsigned int result;
     // This function is used to move 1 and the choice is determined by whether to markbit or demarkbit
     result = ((unsigned int)1)<<((sizeof(unsigned int) * 8-1)-blockposition % (8*BLOCKSIZE) %(sizeof(unsigned int) * 8));
@@ -117,7 +117,7 @@ unsigned int move(unsigned int choice,fs_addr blockposition)
 
 void markbit (fs_addr blockposition)
 {
-    fprintf(stderr,"markbit");
+    fprintf(stderr,"markbit\n");
 
     unsigned int *pointer;
     fs_addr inside_blockposition;
@@ -135,13 +135,13 @@ void markbit (fs_addr blockposition)
 
         middle = move(1,blockposition);
 
-
+        fprintf(stderr,"markbit1\n");
         pointer [inside_blockposition] |= middle;
 
 
-
+        fprintf(stderr,"markbit2\n");
         ip[1] ++;
-
+        fprintf(stderr,"markbit3\n");
 
 
         // here divide the block into unsigned array , and each unit's bit is operated like this
@@ -171,7 +171,7 @@ void demarkbit(fs_addr blockposition)
 fs_addr lookupfreeblock()//This function is used to look for the free block
 {
 
-    fprintf(stderr, "here comes the lookupfreeblock part");
+    fprintf(stderr, "here comes the lookupfreeblock part\n");
 
     //we use the markbit here to judge if the block is free or not
     fs_addr i;
@@ -207,18 +207,28 @@ fs_addr lookupfreeblock()//This function is used to look for the free block
 
 static int create_filenode(const char *filename, const struct stat *st)
 {
+    fprintf(stderr,"here comes the create_filenode part\n");
     struct filenode * node;
     fs_addr address;
     address = lookupfreeblock();
     if (address) {
-        node = (struct filenode *) mem[address];
+        fprintf(stderr,"%ld",address);
+
+        fprintf(stderr,"create1\n");
         mem[address] = create_new_block();
+        node = (struct filenode *) mem[address];
         markbit(address);
-        strncpy(node->filename,filename,strlen(filename));
+        fprintf(stderr,"create2\n");
+        strncpy(node->filename,filename,FILENAMEMAX);
+        fprintf(stderr,"create3\n");
         node->st = *st;
+        fprintf(stderr,"create4\n");
         node->firstcontentnode = 0;
+        fprintf(stderr,"create5\n");
         node->next = root;
+        fprintf(stderr,"create6\n");
         root = address;
+        fprintf(stderr,"create7\n");
         node->position = address;
         return 0;
     }
@@ -235,7 +245,7 @@ void init_prologue_block(fs_addr a,fs_addr b)
 
 static void* oshfs_init(struct fuse_conn_info *conn)
 {
-    fprintf(stderr, "here comes the init part");
+    fprintf(stderr, "here comes the init part\n");
 
 
     //initialize the oshfs and set the first few blocks as the prologue_block
@@ -267,24 +277,24 @@ static void* oshfs_init(struct fuse_conn_info *conn)
 
 static int oshfs_getattr(const char *path, struct stat *stbuf)
 {
-    fprintf(stderr, "here comes the getattr part\n");
+    //fprintf(stderr, "here comes the getattr part\n");
 
 
     int ret = 0;
     struct filenode *node = get_filenode(path);
     if(strcmp(path, "/") == 0) {
 
-        fprintf(stderr, "here comes the getattr part1\n");
+        //fprintf(stderr, "here comes the getattr part1\n");
         memset(stbuf, 0, sizeof(struct stat));
         stbuf->st_mode = S_IFDIR | 0755;
         stbuf->st_nlink = 2;
     }
     else if(node) {
-        fprintf(stderr, "here comes the getattr part2\n");
+        //fprintf(stderr, "here comes the getattr part2\n");
         memcpy(stbuf, &(node->st), sizeof(struct stat));
     }
     else {
-        fprintf(stderr, "here comes the getattr part3\n");
+        //fprintf(stderr, "here comes the getattr part3\n");
         ret = -ENOENT;
     }
     return ret;
@@ -302,7 +312,7 @@ void blockfree(fs_addr address)
 static int oshfs_mknod(const char *path, mode_t mode, dev_t dev)
 {
 
-    fprintf(stderr, "here comes the mknod part");
+    fprintf(stderr, "here comes the mknod part\n");
 
 
     int count;
@@ -313,7 +323,9 @@ static int oshfs_mknod(const char *path, mode_t mode, dev_t dev)
     st.st_gid = fuse_get_context()->gid;
     st.st_nlink = 1;
     st.st_size = 0;
+    fprintf(stderr,"mknod 0\n");
     check = create_filenode(path + 1, &st);
+    fprintf(stderr,"mknod 1\n");
     if (!check) return 0;
     else return -errno;
 }
@@ -468,7 +480,7 @@ static fs_addr find_the_last_contentnode(struct filenode * firstfile)
 static int oshfs_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
 
-    fprintf(stderr, "here comes the write part");
+    fprintf(stderr, "here comes the write part\n");
 
 
     char * data;
@@ -565,29 +577,21 @@ static int oshfs_write(const char *path, const char *buf, size_t size, off_t off
 }
 
 static int oshfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi){
-  fprintf(stderr,"readdir is ok0\n");
-    struct filenode *node=(root ==0)? NULL: (struct filenode *)mem[root];
-
-
-
-	fprintf(stderr,"readdir is ok\n");
-
-
-    fprintf(stderr,"ok1\n");
-
+  //fprintf(stderr,"readdir is ok0\n");
+    struct filenode *node=(struct filenode *)mem[root];
+	//fprintf(stderr,"readdir is ok\n");
+    //fprintf(stderr,"ok1\n");
     filler(buf, ".", NULL, 0);
-
-	fprintf(stderr,"ok2\n");
-
+	//fprintf(stderr,"ok2\n");
     filler(buf, "..", NULL, 0);
-
-	fprintf(stderr,"ok3\n");
+	//fprintf(stderr,"ok3\n");
 
     while(node!=mem[0]){
         filler(buf, node->filename, &(node->st), 0);
         node=mem[node->next] ;
-	fprintf(stderr,"oknow");
+	      fprintf(stderr,"oknow");
     }
+    return 0;
 }
 
 
@@ -682,6 +686,11 @@ static int oshfs_read(const char *path, char *buf, size_t size, off_t offset, st
 
 
 }
+
+
+
+
+
 
 
 static const struct fuse_operations op = {
